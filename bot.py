@@ -1,35 +1,40 @@
-import os
+import argparse
 import glob
+import gc
+import os
+import json
 import traceback
-
-from PIL import Image, ImageDraw
-from more_itertools import chunked
-
 import tweepy
+
+from more_itertools import chunked
 from rdkit import Chem
 from rdkit.Chem.Draw import rdMolDraw2D
 from aizynthfinder.aizynthfinder import AiZynthFinder
 
-# https://stackoverflow.com/questions/30227466/
-def concat_images(images, filename):
-    images = [Image.open(x) for x in images]
-    widths, heights = zip(*(i.size for i in images))
-    total_height = sum(heights)
-    max_width = max(widths)
-    new_img = Image.new('RGB', (max_width, total_height), (255, 255, 255))
-    draw = ImageDraw.Draw(new_img)
-    offset = 0
-    for img in images:
-        new_img.paste(img, (0, offset))
-        offset += img.height + 20
-        draw.line(((0, offset), (new_img.width, offset)), fill=(0, 0, 0), width=2)
-        offset += 20
-    new_img.save(filename)
+import utils
 
-finder = AiZynthFinder(configfile="/home/ubuntu/network/config.yml")
+# Set up AiZynthFinder
+parser = argparse.ArgumentParser('Retrosynthesis Bot')
+parser.add_argument('--config', default='/home/ubuntu/network/config.yml')
+parser.add_argument('--settings', default='/home/ubuntu/settings.json')
+args = parser.parse_args()
+
+finder = AiZynthFinder(configfile=args.config)
 finder.stock.select("zinc")
 finder.expansion_policy.select("uspto")
 finder.filter_policy.select("uspto")
+
+# Set Twitter API Access Tokens
+with open(args.settings) as f:
+    d = json.load(f)
+    consumer_key = d['consumer_key']
+    consumer_secret = d['consumer_secret']
+    access_token = d['access_token']
+    access_secret = d['access_secret']
+
+auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
+auth.set_access_token(access_token, access_secret)
+api = tweepy.API(auth)
     
 class MyStreamListener(tweepy.StreamListener):
     # This function is called every time a tweet containing '@retrosynthchan' is found.
@@ -46,6 +51,7 @@ class MyStreamListener(tweepy.StreamListener):
                 text = status.extended_tweet["full_text"]
             except AttributeError:
                 text = status.text
+            print(f"@{status.author.screen_name}: {text}")
         try:
             # SMILES should come right after the screen name
             smiles_org = text.split(' ')[1]
@@ -86,7 +92,7 @@ class MyStreamListener(tweepy.StreamListener):
                 # Concat 3 images into a single image by Pillow
                 images = glob.glob(f'{dirname}/route*.png')
                 for i, imgs in enumerate(chunked(sorted(images), 3)):
-                    concat_images(imgs, f"{dirname}/result{i}.png")
+                    utils.concat_images(imgs, f"{dirname}/result{i}.png")
             except:
                 # If an error occurs, return error message
                 print(traceback.format_exc())
@@ -107,18 +113,8 @@ class MyStreamListener(tweepy.StreamListener):
         else:
             api.update_status(status='@{} No retrosynthesis route was found.'.format(status.author.screen_name), in_reply_to_status_id=status.id)
 
-if __name__ == "__main__":
-    # Set Twitter API Access Tokens
-    consumer_key = "XXXXXXXXXXXXXXXXXXXXXXXXX"
-    consumer_secret = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-    access_token = "XXXXXXXXXXXXXXXXXXX-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-    access_secret = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
-    auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-    auth.set_access_token(access_token, access_secret)
-    api = tweepy.API(auth)
-
-    # Start stream (https://docs.tweepy.org/en/latest/streaming_how_to.html)
-    myStreamListener = MyStreamListener()
-    myStream = tweepy.Stream(auth=api.auth, listener=myStreamListener)
-    myStream.filter(track=['@retrosynthchan'])
+# Start stream (https://docs.tweepy.org/en/latest/streaming_how_to.html)
+myStreamListener = MyStreamListener()
+myStream = tweepy.Stream(auth=api.auth, listener=myStreamListener)
+myStream.filter(track=['@retrosynthchan'])
