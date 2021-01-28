@@ -1,34 +1,36 @@
 import os
-import sys
 import glob
 import traceback
-import subprocess
-import urllib.parse
-import pandas as pd
+
+from PIL import Image, ImageDraw
 from more_itertools import chunked
 
 import tweepy
 from rdkit import Chem
-from rdkit.Chem import Draw
-from aizynthfinder.analysis import ReactionTree
+from rdkit.Chem.Draw import rdMolDraw2D
+from aizynthfinder.aizynthfinder import AiZynthFinder
 
-def run(dirname):
-    # Run AiZynthFinder CLI
-    proc = subprocess.run("aizynthcli --config /home/ubuntu/network/config.yml --output {}/output.hdf5 --smiles {}/smiles.txt > /dev/null".format(dirname, dirname), shell=True, text=True)
-    # Generate synthesis route images
-    # https://molecularai.github.io/aizynthfinder/html/cli.html#analysing-output
-    data = pd.read_hdf("{}/output.hdf5".format(dirname), "table")
-    all_trees = data.trees.values
-    trees_for_first_target = all_trees[0]
-    for itree, tree in enumerate(trees_for_first_target):
-        imagefile = f"{dirname}/route{itree:03d}.png"
-        ReactionTree.from_dict(tree).to_image().save(imagefile)
-    # Combine 4 images into a single image by ImageMagick
-    images = glob.glob(f'{dirname}/route*.png')
-    for i, imgs in enumerate(chunked(sorted(images), 3)):
-        arg = ' '.join(imgs)
-        proc = subprocess.run("convert -append -gravity south -splice 0x40 {} {}/result{}.png > /dev/null".format(arg, dirname, i), shell=True, text=True)
+# https://stackoverflow.com/questions/30227466/
+def concat_images(images, filename):
+    images = [Image.open(x) for x in images]
+    widths, heights = zip(*(i.size for i in images))
+    total_height = sum(heights)
+    max_width = max(widths)
+    new_img = Image.new('RGB', (max_width, total_height), (255, 255, 255))
+    draw = ImageDraw.Draw(new_img)
+    offset = 0
+    for img in images:
+        new_img.paste(img, (0, offset))
+        offset += img.height + 20
+        draw.line(((0, offset), (new_img.width, offset)), fill=(0, 0, 0), width=2)
+        offset += 20
+    new_img.save(filename)
 
+finder = AiZynthFinder(configfile="/home/ubuntu/network/config.yml")
+finder.stock.select("zinc")
+finder.expansion_policy.select("uspto")
+finder.filter_policy.select("uspto")
+    
 class MyStreamListener(tweepy.StreamListener):
     # This function is called every time a tweet containing '@retrosynthchan' is found.
     def on_status(self, status):
@@ -61,27 +63,35 @@ class MyStreamListener(tweepy.StreamListener):
         # Get canonical SMILES
         smiles = Chem.MolToSmiles(m)
         # Convert SMILES into safe string (e.g. '/' should not be used as a dir name)
-        dirname = urllib.parse.quote(smiles, safe='')
+        dirname = Chem.inchi.MolToInchiKey(m)
         # if dir does not exist (i.e. first run), run retrosynthesis
         if not os.path.exists(dirname):
             try:
                 os.mkdir(dirname)
-                # Save SMILES as a file to get the result of aizynthfindercli in HDF5 format 
-                with open('{}/smiles.txt'.format(dirname), mode='w') as f:
-                    f.write(smiles)
                 # Generate an image of molecule to attach
-                Draw.MolToFile(m, '{}/mol.png'.format(dirname))
-                # Trim space by ImageMagick
-                proc = subprocess.run("mogrify -trim +repage {}/mol.png > /dev/null".format(dirname), shell=True, text=True)
+                drawer = rdMolDraw2D.MolDraw2DCairo(800, 450)
+                drawer.DrawMolecule(m)
+                drawer.FinishDrawing()
+                image_filename = f'{dirname}/mol.png'
+                drawer.WriteDrawingText(image_filename)
                 # Send a request confirmation message
-                res = api.media_upload('{}/mol.png'.format(dirname))
+                res = api.media_upload(image_filename)
                 api.update_status(status='@{} Started retrosynthesis for {}. Please wait for a while.'.format(status.author.screen_name, smiles_org), media_ids=[res.media_id], in_reply_to_status_id=status.id)
                 # Run AiZynthFinder
-                run(dirname)
+                finder.target_smiles = smiles
+                finder.tree_search()
+                finder.build_routes()
+                for n, image in enumerate(finder.routes.images):
+                    image.save(f"{dirname}/route{n:03d}.png")
+                # Concat 3 images into a single image by Pillow
+                images = glob.glob(f'{dirname}/route*.png')
+                for i, imgs in enumerate(chunked(sorted(images), 3)):
+                    concat_images(imgs, f"{dirname}/result{i}.png")
             except:
                 # If an error occurs, return error message
                 print(traceback.format_exc())
                 api.update_status(status='@{} Retrosynthesis failed.'.format(status.author.screen_name), in_reply_to_status_id=status.id)
+                return
 
         # Return the result of retrosynthesis
         # Upload up to 4 images
