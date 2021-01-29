@@ -3,26 +3,22 @@ import glob
 import gc
 import os
 import json
+import subprocess
 import traceback
 import tweepy
+import pandas as pd
 
 from more_itertools import chunked
 from rdkit import Chem
 from rdkit.Chem.Draw import rdMolDraw2D
-from aizynthfinder.aizynthfinder import AiZynthFinder
 
-import utils
+from generate_images import generate_images
 
 # Set up AiZynthFinder
 parser = argparse.ArgumentParser('Retrosynthesis Bot')
-parser.add_argument('--config', default='/home/ubuntu/network/config.yml')
 parser.add_argument('--settings', default='/home/ubuntu/settings.json')
+parser.add_argument('--config', default='/home/ubuntu/network/config.yml')
 args = parser.parse_args()
-
-finder = AiZynthFinder(configfile=args.config)
-finder.stock.select("zinc")
-finder.expansion_policy.select("uspto")
-finder.filter_policy.select("uspto")
 
 # Set Twitter API Access Tokens
 with open(args.settings) as f:
@@ -84,15 +80,7 @@ class MyStreamListener(tweepy.StreamListener):
                 res = api.media_upload(image_filename)
                 api.update_status(status='@{} Started retrosynthesis for {}. Please wait for a while.'.format(status.author.screen_name, smiles_org), media_ids=[res.media_id], in_reply_to_status_id=status.id)
                 # Run AiZynthFinder
-                finder.target_smiles = smiles
-                finder.tree_search()
-                finder.build_routes()
-                for n, image in enumerate(finder.routes.images):
-                    image.save(f"{dirname}/route{n:03d}.png")
-                # Concat 3 images into a single image by Pillow
-                images = glob.glob(f'{dirname}/route*.png')
-                for i, imgs in enumerate(chunked(sorted(images), 3)):
-                    utils.concat_images(imgs, f"{dirname}/result{i}.png")
+                generate_images(smiles, dirname, args.config)
             except:
                 # If an error occurs, return error message
                 print(traceback.format_exc())
