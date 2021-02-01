@@ -3,7 +3,6 @@ import glob
 import gc
 import os
 import json
-import subprocess
 import traceback
 import tweepy
 import pandas as pd
@@ -16,8 +15,8 @@ from generate_images import generate_images
 
 # Set up AiZynthFinder
 parser = argparse.ArgumentParser('Retrosynthesis Bot')
-parser.add_argument('--settings', default='/home/ubuntu/settings.json')
-parser.add_argument('--config', default='/home/ubuntu/network/config.yml')
+parser.add_argument('--config', default='/home/ubuntu/aizynthfinder/model/config.yml')
+parser.add_argument('--settings', default='/home/ubuntu/retrosynthesis_bot/settings.json')
 args = parser.parse_args()
 
 # Set Twitter API Access Tokens
