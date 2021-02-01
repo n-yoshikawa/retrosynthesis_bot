@@ -3,6 +3,7 @@ import glob
 import gc
 import os
 import json
+import subprocess
 import traceback
 import tweepy
 import pandas as pd
@@ -10,8 +11,6 @@ import pandas as pd
 from more_itertools import chunked
 from rdkit import Chem
 from rdkit.Chem.Draw import rdMolDraw2D
-
-from generate_images import generate_images
 
 # Set up AiZynthFinder
 parser = argparse.ArgumentParser('Retrosynthesis Bot')
@@ -79,7 +78,8 @@ class MyStreamListener(tweepy.StreamListener):
                 res = api.media_upload(image_filename)
                 api.update_status(status='@{} Started retrosynthesis for {}. Please wait for a while.'.format(status.author.screen_name, smiles_org), media_ids=[res.media_id], in_reply_to_status_id=status.id)
                 # Run AiZynthFinder
-                generate_images(smiles, dirname, args.config)
+                path = os.path.dirname(os.path.abspath(__file__))
+                proc = subprocess.run(f"python {path}/generate_images.py --smiles \"{smiles}\" --out_dir {dirname} > /dev/null 2>&1", shell=True, text=True)
             except:
                 # If an error occurs, return error message
                 print(traceback.format_exc())
