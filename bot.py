@@ -38,7 +38,7 @@ class MyStreamListener(tweepy.StreamListener):
         if hasattr(status, "retweeted_status"):
             return
         # Avoid self reply
-        elif status.author.screen_name == '@retrosynthchan':
+        elif status.author.screen_name == 'retrosynthchan':
             return
         else:
             # Get full text (https://docs.tweepy.org/en/latest/extended_tweets.html)
