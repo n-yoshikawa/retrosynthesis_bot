@@ -49,6 +49,9 @@ class MyStreamListener(tweepy.StreamListener):
             print(f"@{status.author.screen_name}: {text}")
         try:
             # SMILES should come right after the screen name
+            reply_to = text.split(' ')[0]
+            if reply_to != '@retrosynthchan':
+                return
             smiles_org = text.split(' ')[1]
         except:
             # If the input does not contain any spaces, return error message
