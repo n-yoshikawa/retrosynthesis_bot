@@ -45,7 +45,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('Random Retrosynthesis Bot')
     parser.add_argument('--smiles', required=True)
     parser.add_argument('--out_dir', required=True)
-    parser.add_argument('--config', default='/home/ubuntu/aizynthfinder/model/config.yml')
+    parser.add_argument('--config', default='/root/aizynthfinder/model/config.yml')
     args = parser.parse_args()
 
     generate_images(args.smiles, args.out_dir, args.config)
