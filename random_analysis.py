@@ -31,7 +31,6 @@ api = tweepy.API(auth)
 while True:
     cid = random.randint(10000, 1000000)
     compound = pcp.get_compounds(cid, 'cid')[0]
-    print(cid, compound.isomeric_smiles)
     dirname = compound.inchikey
     if not os.path.exists(dirname):
         generate_images(compound.isomeric_smiles, dirname, args.config)

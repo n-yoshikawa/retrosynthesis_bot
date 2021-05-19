@@ -46,7 +46,6 @@ class MyStreamListener(tweepy.StreamListener):
                 text = status.extended_tweet["full_text"]
             except AttributeError:
                 text = status.text
-            print(f"@{status.author.screen_name}: {text}")
         try:
             # SMILES should come right after the screen name
             reply_to = text.split(' ')[0]
@@ -85,7 +84,6 @@ class MyStreamListener(tweepy.StreamListener):
                 generate_images(smiles, dirname, args.config)
             except:
                 # If an error occurs, return error message
-                print(traceback.format_exc())
                 api.update_status(status='@{} Retrosynthesis failed.'.format(status.author.screen_name), in_reply_to_status_id=status.id)
                 return
 
