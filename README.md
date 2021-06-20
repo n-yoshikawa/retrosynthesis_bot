@@ -1,4 +1,6 @@
 # Twitter Retrosynthesis Bot
+[![DOI](https://zenodo.org/badge/330123879.svg)](https://zenodo.org/badge/latestdoi/330123879)
+
 Source code for [@retrosynthchan](https://twitter.com/retrosynthchan)
 
 ## Dependencies
